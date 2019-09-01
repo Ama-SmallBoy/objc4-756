@@ -272,10 +272,11 @@ void _object_set_associative_reference(id object, void *key, id value, uintptr_t
     // This code used to work when nil was passed for object and key. Some code
     // probably relies on that to not crash. Check and handle it explicitly.
     // rdar://problem/44094390
+    //判断该源类对象以及要关联的值是否存在，不存在直接return;
     if (!object && !value) return;
     
     assert(object);
-    
+    //y异常判定，
     if (object->getIsa()->forbidsAssociatedObjects())
         _objc_fatal("objc_setAssociatedObject called on instance (%p) of class %s which does not allow associated objects", object, object_getClassName(object));
     
@@ -283,11 +284,33 @@ void _object_set_associative_reference(id object, void *key, id value, uintptr_t
     ObjcAssociation old_association(0, nil);
     id new_value = value ? acquireValue(value, policy) : nil;
     {
+        //关联对象管理类，C++ 实现的类
         AssociationsManager manager;
+        // 获取其维护的一个Hashmap,我们可以理解为是一个字典。
+        //=============
+        // 是一个全局容器
+        //=============
         AssociationsHashMap &associations(manager.associations());
+        
+        /*
+         
+         关联对象的存储的结构：
+         
+         AssociationsHashMap = @{
+         disguised_object:ObjectAssociationMap
+         }
+         
+         ObjectAssociationMap=@{
+            key:ObjcAssociation
+         }
+         ObjcAssociation包含关联的策略(policy)&&关联的数值（value）--> ObjcAssociation(policy, new_value)
+
+         */
+        //获取映射到AssociationsHashMap对应的key值
         disguised_ptr_t disguised_object = DISGUISE(object);
         if (new_value) {
             // break any existing association.
+            ////根据对象指针查找对应的一个ObjectAssociationMap结构的map
             AssociationsHashMap::iterator i = associations.find(disguised_object);
             if (i != associations.end()) {
                 // secondary table exists
@@ -311,10 +334,10 @@ void _object_set_associative_reference(id object, void *key, id value, uintptr_t
             AssociationsHashMap::iterator i = associations.find(disguised_object);
             if (i !=  associations.end()) {
                 ObjectAssociationMap *refs = i->second;
-                ObjectAssociationMap::iterator j = refs->find(key);
+                ObjectAssociationMap::iterator j = refs->find(key);//获取ObjectAssociation
                 if (j != refs->end()) {
                     old_association = j->second;
-                    refs->erase(j);
+                    refs->erase(j);//测出操作：
                 }
             }
         }
